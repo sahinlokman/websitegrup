@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   TrendingUp, 
@@ -11,7 +11,9 @@ import {
   Trophy,
   Medal,
   Award,
-  Crown
+  Crown,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { TelegramGroup } from '../types/telegram';
 import { createSlug } from '../utils/slug';
@@ -24,6 +26,10 @@ interface TopGroupsPageProps {
 export const TopGroupsPage: React.FC<TopGroupsPageProps> = ({ groups, categories }) => {
   const [selectedCategory, setSelectedCategory] = useState('Tümü');
   const [searchTerm, setSearchTerm] = useState('');
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 24;
 
   const sortedGroups = useMemo(() => {
     let filtered = groups;
@@ -42,8 +48,19 @@ export const TopGroupsPage: React.FC<TopGroupsPageProps> = ({ groups, categories
       );
     }
 
-    return filtered.sort((a, b) => b.members - a.members).slice(0, 100);
+    return filtered.sort((a, b) => b.members - a.members);
   }, [groups, selectedCategory, searchTerm]);
+
+  // Pagination calculations
+  const totalPages = Math.ceil(sortedGroups.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentGroups = sortedGroups.slice(startIndex, endIndex);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCategory]);
 
   const formatMembers = (count: number) => {
     if (count >= 1000000) {
@@ -82,8 +99,128 @@ export const TopGroupsPage: React.FC<TopGroupsPageProps> = ({ groups, categories
     return 'bg-gray-100 text-gray-700';
   };
 
+  // Pagination component
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+
+    const getVisiblePages = () => {
+      const delta = 2;
+      const range = [];
+      const rangeWithDots = [];
+
+      for (let i = Math.max(2, currentPage - delta); i <= Math.min(totalPages - 1, currentPage + delta); i++) {
+        range.push(i);
+      }
+
+      if (currentPage - delta > 2) {
+        rangeWithDots.push(1, '...');
+      } else {
+        rangeWithDots.push(1);
+      }
+
+      rangeWithDots.push(...range);
+
+      if (currentPage + delta < totalPages - 1) {
+        rangeWithDots.push('...', totalPages);
+      } else {
+        rangeWithDots.push(totalPages);
+      }
+
+      return rangeWithDots;
+    };
+
+    const visiblePages = getVisiblePages();
+
+    return (
+      <div className="flex items-center justify-center space-x-2 mt-12">
+        {/* Previous button */}
+        <button
+          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+          disabled={currentPage === 1}
+          className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+            currentPage === 1
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          <ChevronLeft className="w-4 h-4 mr-1" />
+          Önceki
+        </button>
+
+        {/* Page numbers */}
+        <div className="flex items-center space-x-1">
+          {visiblePages.map((page, index) => (
+            <React.Fragment key={index}>
+              {page === '...' ? (
+                <span className="px-3 py-2 text-gray-500">...</span>
+              ) : (
+                <button
+                  onClick={() => setCurrentPage(page as number)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    currentPage === page
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {page}
+                </button>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* Next button */}
+        <button
+          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+          disabled={currentPage === totalPages}
+          className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+            currentPage === totalPages
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          Sonraki
+          <ChevronRight className="w-4 h-4 ml-1" />
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div>
+      {/* Header */}
+      <div className="bg-gradient-to-br from-purple-500 to-pink-500 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="text-center">
+            <div className="w-24 h-24 bg-white bg-opacity-20 rounded-3xl flex items-center justify-center mx-auto mb-6">
+              <TrendingUp className="w-12 h-12 text-white" />
+            </div>
+            <h1 className="text-4xl font-bold mb-4">En Popüler Gruplar</h1>
+            <p className="text-xl text-white text-opacity-90 mb-8 max-w-2xl mx-auto">
+              Üye sayısına göre en popüler Telegram gruplarını keşfedin
+            </p>
+            
+            {/* Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-2xl mx-auto">
+              <div className="text-center">
+                <div className="text-3xl font-bold mb-2">{sortedGroups.length}</div>
+                <div className="text-white text-opacity-80">Toplam Grup</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold mb-2">
+                  {formatMembers(sortedGroups.reduce((sum, g) => sum + g.members, 0))}
+                </div>
+                <div className="text-white text-opacity-80">Toplam Üye</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold mb-2">{categories.length - 1}</div>
+                <div className="text-white text-opacity-80">Kategori</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Filters */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-3xl p-6 border border-gray-200 mb-8">
@@ -116,8 +253,24 @@ export const TopGroupsPage: React.FC<TopGroupsPageProps> = ({ groups, categories
           </div>
         </div>
 
-        {/* Top 3 Podium */}
-        {sortedGroups.length >= 3 && (
+        {/* Results Info */}
+        {sortedGroups.length > 0 && (
+          <div className="mb-4">
+            <div className="flex items-center justify-between">
+              <p className="text-gray-600 text-sm">
+                {sortedGroups.length} gruptan {startIndex + 1}-{Math.min(endIndex, sortedGroups.length)} arası gösteriliyor
+              </p>
+              {totalPages > 1 && (
+                <p className="text-gray-600 text-sm">
+                  Sayfa {currentPage} / {totalPages}
+                </p>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Top 3 Podium - Only show on first page */}
+        {currentPage === 1 && sortedGroups.length >= 3 && (
           <div className="mb-12">
             <h2 className="text-2xl font-bold text-gray-900 text-center mb-8">Podium</h2>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-4xl mx-auto">
@@ -201,46 +354,38 @@ export const TopGroupsPage: React.FC<TopGroupsPageProps> = ({ groups, categories
           </div>
         )}
 
-        {/* Full Rankings Table */}
+        {/* Groups Table */}
         <div className="bg-white rounded-3xl border border-gray-200 overflow-hidden">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-2xl font-bold text-gray-900">Tam Sıralama</h2>
-            <p className="text-gray-600">
-              {selectedCategory === 'Tümü' ? 'Tüm kategoriler' : selectedCategory} - 
-              {sortedGroups.length} grup listeleniyor
-            </p>
-          </div>
-
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead className="bg-gray-50 border-b border-gray-200">
                 <tr>
-                  <th className="text-left py-4 px-6 font-semibold text-gray-900">Sıra</th>
-                  <th className="text-left py-4 px-6 font-semibold text-gray-900">Grup</th>
-                  <th className="text-left py-4 px-6 font-semibold text-gray-900">Kategori</th>
-                  <th className="text-left py-4 px-6 font-semibold text-gray-900">Üye Sayısı</th>
-                  <th className="text-left py-4 px-6 font-semibold text-gray-900">Durum</th>
+                  <th className="py-4 px-6 text-left text-sm font-medium text-gray-700">Sıra</th>
+                  <th className="py-4 px-6 text-left text-sm font-medium text-gray-700">Grup</th>
+                  <th className="py-4 px-6 text-left text-sm font-medium text-gray-700">Kategori</th>
+                  <th className="py-4 px-6 text-left text-sm font-medium text-gray-700">Üye Sayısı</th>
+                  <th className="py-4 px-6 text-center text-sm font-medium text-gray-700">İşlem</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-200">
-                {sortedGroups.map((group, index) => {
-                  const rank = index + 1;
+                {currentGroups.map((group, index) => {
+                  const rank = startIndex + index + 1;
                   const CategoryIcon = getCategoryIcon(group.category);
                   
                   return (
                     <tr key={group.id} className="hover:bg-gray-50 transition-colors">
                       <td className="py-4 px-6">
                         <div className="flex items-center space-x-3">
-                          <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm ${getRankBadgeColor(rank)}`}>
-                            {rank <= 3 ? getRankIcon(rank) : `#${rank}`}
-                          </div>
-                          {rank <= 10 && rank > 3 && getRankIcon(rank)}
+                          <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${getRankBadgeColor(rank)}`}>
+                            {rank}
+                          </span>
+                          {getRankIcon(rank)}
                         </div>
                       </td>
                       <td className="py-4 px-6">
                         <div className="flex items-center space-x-3">
                           {group.image ? (
-                            <div className="w-12 h-12 rounded-2xl overflow-hidden border-2 border-gray-200">
+                            <div className="w-10 h-10 rounded-2xl overflow-hidden border-2 border-gray-200">
                               <img
                                 src={group.image}
                                 alt={group.name}
@@ -248,8 +393,8 @@ export const TopGroupsPage: React.FC<TopGroupsPageProps> = ({ groups, categories
                               />
                             </div>
                           ) : (
-                            <div className={`w-12 h-12 bg-gradient-to-br ${getCategoryColor(group.category)} rounded-2xl flex items-center justify-center`}>
-                              <CategoryIcon className="w-6 h-6 text-white" />
+                            <div className={`w-10 h-10 bg-gradient-to-br ${getCategoryColor(group.category)} rounded-2xl flex items-center justify-center`}>
+                              <CategoryIcon className="w-5 h-5 text-white" />
                             </div>
                           )}
                           <div>
@@ -279,20 +424,15 @@ export const TopGroupsPage: React.FC<TopGroupsPageProps> = ({ groups, categories
                           <span className="font-semibold text-gray-900">{formatMembers(group.members)}</span>
                         </div>
                       </td>
-                      <td className="py-4 px-6">
-                        <div className="flex items-center space-x-2">
-                          {group.featured && (
-                            <span className="bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full text-xs font-medium flex items-center space-x-1">
-                              <Star className="w-3 h-3" />
-                              <span>Öne Çıkan</span>
-                            </span>
-                          )}
-                          {group.verified && (
-                            <span className="bg-blue-100 text-blue-700 px-2 py-1 rounded-full text-xs font-medium">
-                              Doğrulanmış
-                            </span>
-                          )}
-                        </div>
+                      <td className="py-4 px-6 text-center">
+                        <a
+                          href={group.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center px-4 py-2 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-2xl text-sm font-medium hover:from-blue-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105"
+                        >
+                          Katıl
+                        </a>
                       </td>
                     </tr>
                   );
@@ -300,17 +440,22 @@ export const TopGroupsPage: React.FC<TopGroupsPageProps> = ({ groups, categories
               </tbody>
             </table>
           </div>
-
-          {sortedGroups.length === 0 && (
-            <div className="text-center py-12">
-              <TrendingUp className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-gray-900 mb-2">Grup bulunamadı</h3>
-              <p className="text-gray-600">
-                {searchTerm ? 'Arama kriterlerinizi değiştirmeyi deneyin' : 'Bu kategoride grup bulunmuyor'}
-              </p>
-            </div>
-          )}
         </div>
+
+        {/* Pagination */}
+        {renderPagination()}
+
+        {sortedGroups.length === 0 && (
+          <div className="text-center py-16">
+            <div className="w-24 h-24 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full flex items-center justify-center mx-auto mb-6">
+              <Search className="w-12 h-12 text-white" />
+            </div>
+            <h3 className="text-2xl font-bold text-gray-900 mb-4">Grup bulunamadı</h3>
+            <p className="text-gray-600 max-w-md mx-auto">
+              Arama kriterlerinize uygun grup bulunmuyor. Filtreleri değiştirmeyi deneyin.
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

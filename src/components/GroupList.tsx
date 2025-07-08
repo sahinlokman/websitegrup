@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Search, Users, Plus, Filter, MessageCircle, Star, Globe } from 'lucide-react';
+import { Search, Users, Plus, Filter, MessageCircle, Star, Globe, ChevronLeft, ChevronRight } from 'lucide-react';
 import { AddGroupModal } from './AddGroupModal';
 import { TelegramGroup } from '../types/telegram';
 import { promotionService } from '../services/promotionService';
@@ -20,6 +20,10 @@ export const GroupList: React.FC<GroupListProps> = ({ groups, categories, onGrou
   const [sortBy, setSortBy] = useState('featured');
   const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
   const [loadingGroups, setLoadingGroups] = useState<Record<string, boolean>>({});
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 24;
 
   // Süresi dolan öne çıkarmaları kontrol et
   React.useEffect(() => {
@@ -88,6 +92,17 @@ export const GroupList: React.FC<GroupListProps> = ({ groups, categories, onGrou
     return filtered;
   }, [searchTerm, selectedCategory, sortBy, groups]);
 
+  // Pagination calculations
+  const totalPages = Math.ceil(filteredGroups.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentGroups = filteredGroups.slice(startIndex, endIndex);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, selectedCategory, sortBy]);
+
   const formatMembers = (count: number) => {
     if (count >= 1000) {
       return `${(count / 1000).toFixed(1)}K`;
@@ -103,6 +118,93 @@ export const GroupList: React.FC<GroupListProps> = ({ groups, categories, onGrou
   const getCategoryColor = (categoryName: string) => {
     const category = categories.find(cat => cat.name === categoryName);
     return category ? category.color : 'from-purple-500 to-pink-500';
+  };
+
+  // Pagination component
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+
+    const getVisiblePages = () => {
+      const delta = 2;
+      const range = [];
+      const rangeWithDots = [];
+
+      for (let i = Math.max(2, currentPage - delta); i <= Math.min(totalPages - 1, currentPage + delta); i++) {
+        range.push(i);
+      }
+
+      if (currentPage - delta > 2) {
+        rangeWithDots.push(1, '...');
+      } else {
+        rangeWithDots.push(1);
+      }
+
+      rangeWithDots.push(...range);
+
+      if (currentPage + delta < totalPages - 1) {
+        rangeWithDots.push('...', totalPages);
+      } else {
+        rangeWithDots.push(totalPages);
+      }
+
+      return rangeWithDots;
+    };
+
+    const visiblePages = getVisiblePages();
+
+    return (
+      <div className="flex items-center justify-center space-x-2 mt-12">
+        {/* Previous button */}
+        <button
+          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+          disabled={currentPage === 1}
+          className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+            currentPage === 1
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          <ChevronLeft className="w-4 h-4 mr-1" />
+          Önceki
+        </button>
+
+        {/* Page numbers */}
+        <div className="flex items-center space-x-1">
+          {visiblePages.map((page, index) => (
+            <React.Fragment key={index}>
+              {page === '...' ? (
+                <span className="px-3 py-2 text-gray-500">...</span>
+              ) : (
+                <button
+                  onClick={() => setCurrentPage(page as number)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    currentPage === page
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {page}
+                </button>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* Next button */}
+        <button
+          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+          disabled={currentPage === totalPages}
+          className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+            currentPage === totalPages
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          Sonraki
+          <ChevronRight className="w-4 h-4 ml-1" />
+        </button>
+      </div>
+    );
   };
 
   return (
@@ -177,10 +279,26 @@ export const GroupList: React.FC<GroupListProps> = ({ groups, categories, onGrou
         </div>
       </div>
 
+      {/* Results Info */}
+      {filteredGroups.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-4">
+          <div className="flex items-center justify-between">
+            <p className="text-gray-600 text-sm">
+              {filteredGroups.length} gruptan {startIndex + 1}-{Math.min(endIndex, filteredGroups.length)} arası gösteriliyor
+            </p>
+            {totalPages > 1 && (
+              <p className="text-gray-600 text-sm">
+                Sayfa {currentPage} / {totalPages}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Groups Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pb-12">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {filteredGroups.map((group) => {
+          {currentGroups.map((group) => {
             const CategoryIcon = getCategoryIcon(group.category);
             const isPromoted = promotionService.isGroupPromoted(group.id);
             
@@ -271,6 +389,9 @@ export const GroupList: React.FC<GroupListProps> = ({ groups, categories, onGrou
             );
           })}
         </div>
+
+        {/* Pagination */}
+        {renderPagination()}
 
         {filteredGroups.length === 0 && (
           <div className="text-center py-12">

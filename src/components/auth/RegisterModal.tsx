@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { X, User, Mail, Lock, UserPlus, Loader2, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
-import { userActivityService } from '../../services/userActivityService';
 
 interface RegisterModalProps {
   isOpen: boolean;
@@ -14,7 +13,7 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
   onClose, 
   onSwitchToLogin 
 }) => {
-  const { register, isLoading } = useAuth();
+  const { register, isLoading, user } = useAuth();
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -62,16 +61,6 @@ export const RegisterModal: React.FC<RegisterModalProps> = ({
         password: '',
         confirmPassword: ''
       });
-      
-      // Record registration activity
-      if (user) {
-        userActivityService.addActivity(
-          user.id,
-          'register',
-          'user',
-          {}
-        );
-      }
       
       onClose();
     } else {

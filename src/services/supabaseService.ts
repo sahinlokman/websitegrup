@@ -21,7 +21,7 @@ export const authService = {
     try {
       // In a real app, you would use Supabase Auth
       // For now, we'll simulate login with a database query
-      const { data, error } = await supabase
+      const { data, error } = await (supabase as any)
         .rpc('get_user_by_username', { username_param: credentials.username });
       
       if (error || !data || data.length === 0) {
@@ -63,7 +63,7 @@ export const authService = {
     try {
       // In a real app, you would use Supabase Auth
       // For now, we'll insert directly into the users table
-      const { data: newUser, error } = await supabase
+      const { data: newUser, error } = await (supabase as any)
         .rpc('register_new_user', { 
           username_param: data.username,
           email_param: data.email,
@@ -118,8 +118,8 @@ export const authService = {
   
   async getUsers(): Promise<User[]> {
     try {
-      const { data, error } = await supabase
-        .rpc('get_all_users');
+      const { data, error } = await (supabase as any)
+        .rpc('get_all_users_public');
       
       if (error) {
         console.error('Get users error:', error);
@@ -144,8 +144,8 @@ export const authService = {
   
   async deleteUser(userId: string): Promise<boolean> {
     try {
-      const { error } = await supabase
-        .rpc('delete_user', { user_id_param: userId });
+      const { error } = await (supabase as any)
+        .rpc('delete_user_public', { user_id_param: userId });
       
       if (error) {
         console.error('Delete user error:', error);
@@ -161,8 +161,8 @@ export const authService = {
   
   async updateUserRole(userId: string, role: 'admin' | 'user'): Promise<boolean> {
     try {
-      const { error } = await supabase
-        .rpc('update_user_role', { 
+      const { error } = await (supabase as any)
+        .rpc('update_user_role_public', { 
           user_id_param: userId,
           role_param: role
         });

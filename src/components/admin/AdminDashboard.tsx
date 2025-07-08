@@ -134,7 +134,6 @@ export const AdminDashboard: React.FC = () => {
     // İstatistikleri hesapla
     const calculateStats = () => {
       // Sayaçları localStorage'dan al
-      const pendingCount = localStorage.getItem('pendingGroupsCount');
       const approvedCount = localStorage.getItem('approvedGroupsCount');
       const rejectedCount = localStorage.getItem('rejectedGroupsCount');
       
@@ -158,8 +157,33 @@ export const AdminDashboard: React.FC = () => {
         console.error('Error loading groups for stats:', error);
       }
       
-      // Bekleyen grup sayısı
-      let pendingGroups = pendingCount ? parseInt(pendingCount) : 0;
+      // Bekleyen grup sayısını gerçek verilerden hesapla (PendingGroups.tsx ile aynı mantık)
+      let pendingGroups = 0;
+      
+      try {
+        // localStorage'daki tüm anahtarları al ve bekleyen grupları say
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          
+          // userGroups_ ile başlayan anahtarları bul
+          if (key && key.startsWith('userGroups_')) {
+            try {
+              const userGroupsData = localStorage.getItem(key);
+              if (userGroupsData) {
+                const userGroups = JSON.parse(userGroupsData);
+                
+                // Bekleyen grupları say
+                const pendingUserGroups = userGroups.filter((group: any) => group.status === 'pending');
+                pendingGroups += pendingUserGroups.length;
+              }
+            } catch (error) {
+              console.error(`Error loading pending groups from ${key}:`, error);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error calculating pending groups count:', error);
+      }
       
       // Rastgele görüntüleme ve büyüme değerleri (gerçek uygulamada API'den gelecek)
       const todayViews = Math.floor(Math.random() * 2000) + 500;
@@ -190,7 +214,7 @@ export const AdminDashboard: React.FC = () => {
     const updateRecentActivities = () => {
       // Gerçek uygulamada API'den gelecek
       // Şimdilik rastgele aktiviteler oluştur
-      const activities = [];
+      const activities: Array<{ id: number; action: string; group: string; time: string; type: 'success' | 'warning' | 'info' | 'error' }> = [];
       
       // Bekleyen gruplardan aktivite oluştur
       for (let i = 0; i < localStorage.length; i++) {

@@ -128,14 +128,8 @@ export const AddGroupModal: React.FC<AddGroupModalProps> = ({
           return;
         }
 
-        // Eğer admin ise, ana groups tablosuna da kaydet
-        if (currentUser.role === 'admin') {
-          const addedGroup = await groupService.addGroup(updatedGroup);
-          if (!addedGroup) {
-            setError('Grup ana listeye eklenemedi. Lütfen tekrar deneyin.');
-            return;
-          }
-        }
+        // Not: Admin kullanıcılar için groups tablosuna ekleme işlemi
+        // onGroupAdded callback'inde yapılacak
 
         // 2) Kullanıcı bazlı localStorage kaydı
         const savedUserGroups = localStorage.getItem(`userGroups_${currentUser.id}`);
@@ -156,24 +150,8 @@ export const AddGroupModal: React.FC<AddGroupModalProps> = ({
           }
         }
 
-        // 4) Yalnızca admin kullanıcıları genel grup listesine ekler
-        if (currentUser.role === 'admin') {
-          try {
-            const savedGroups = localStorage.getItem('groups');
-            const publicGroups = localStorage.getItem('publicGroups') || '[]';
-            let allGroups: TelegramGroup[] = savedGroups ? JSON.parse(savedGroups) : [];
-            let allPublicGroups: TelegramGroup[] = publicGroups ? JSON.parse(publicGroups) : [];
-
-            // Yeni grubu ekle
-            allGroups.unshift(updatedGroup);
-            allPublicGroups.unshift(updatedGroup);
-
-            localStorage.setItem('groups', JSON.stringify(allGroups));
-            localStorage.setItem('publicGroups', JSON.stringify(allPublicGroups));
-          } catch (error) {
-            console.error('Error saving group to localStorage:', error);
-          }
-        }
+        // 4) Admin kullanıcılar için localStorage güncellemesi
+        // onGroupAdded callback'inde yapılacak
 
         // 5) Activity kaydı
         userActivityService.addActivity(

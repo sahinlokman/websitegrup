@@ -87,10 +87,12 @@ class TelegramApiService {
       let groupImageUrl = '';
       if (groupData.photo?.big_file_id) {
         try {
-          groupImageUrl = await this.getGroupPhoto(groupData.photo.big_file_id);
+          const directUrl = await this.getGroupPhoto(groupData.photo.big_file_id);
+          // CORS sorunlarını önlemek için proxy servisi kullan
+          groupImageUrl = `https://images.weserv.nl/?url=${encodeURIComponent(directUrl)}&w=200&h=200&fit=cover&output=webp`;
         } catch (photoError) {
           console.warn('Grup fotoğrafı alınamadı:', photoError);
-          // Fotoğraf alınamazsa devam et, sadece uyarı ver
+          // Fotoğraf alınamazsa boş bırak
           groupImageUrl = '';
         }
       }
@@ -200,9 +202,9 @@ class TelegramApiService {
         throw new Error('Dosya yolu alınamadı');
       }
 
-      // Dosya URL'ini döndür (CORS sorununu önlemek için direkt URL kullan)
-      // Telegram API'den doğrudan resim URL'i alınamıyor, bu yüzden placeholder kullan
-      return `https://via.placeholder.com/200x200?text=${encodeURIComponent(fileId.substring(0, 10))}`;
+      // Gerçek Telegram fotoğraf URL'ini döndür
+      const photoUrl = `https://api.telegram.org/file/bot${BOT_TOKEN}/${fileData.result.file_path}`;
+      return photoUrl;
     } catch (error) {
       console.error('Grup fotoğrafı alma hatası:', error);
       
@@ -306,7 +308,9 @@ class TelegramApiService {
         return null;
       }
 
-      return await this.getGroupPhoto(data.result.photo.big_file_id);
+      const directUrl = await this.getGroupPhoto(data.result.photo.big_file_id);
+      // CORS sorunlarını önlemek için proxy servisi kullan
+      return `https://images.weserv.nl/?url=${encodeURIComponent(directUrl)}&w=200&h=200&fit=cover&output=webp`;
     } catch (error) {
       console.error('Grup fotoğrafı önizleme hatası:', error);
       return null;

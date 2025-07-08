@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useParams, Link, Navigate } from 'react-router-dom';
-import { Search, Users, Plus, Filter, ArrowLeft, TrendingUp, Star } from 'lucide-react';
+import { Search, Users, Plus, Filter, ArrowLeft, TrendingUp, Star, ChevronLeft, ChevronRight } from 'lucide-react';
 import { AddGroupModal } from './AddGroupModal';
 import { TelegramGroup } from '../types/telegram';
 import { promotionService } from '../services/promotionService';
@@ -20,6 +20,10 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ groups, categories, 
   const [showAddForm, setShowAddForm] = useState(false);
   const [memberCounts, setMemberCounts] = useState<Record<string, number>>({});
   const [loadingGroups, setLoadingGroups] = useState<Record<string, boolean>>({});
+
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 24;
 
   // Süresi dolan öne çıkarmaları kontrol et
   React.useEffect(() => {
@@ -101,6 +105,17 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ groups, categories, 
     return filtered;
   }, [groups, category.name, searchTerm, sortBy]);
 
+  // Pagination calculations
+  const totalPages = Math.ceil(categoryGroups.length / itemsPerPage);
+  const startIndex = (currentPage - 1) * itemsPerPage;
+  const endIndex = startIndex + itemsPerPage;
+  const currentGroups = categoryGroups.slice(startIndex, endIndex);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, sortBy]);
+
   const formatMembers = (count: number) => {
     if (count >= 1000) {
       return `${(count / 1000).toFixed(1)}K`;
@@ -116,6 +131,93 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ groups, categories, 
     .filter(g => g.category === category.name)
     .reduce((sum, g) => sum + g.members, 0);
   const featuredGroups = groups.filter(g => g.category === category.name && g.featured).length;
+
+  // Pagination component
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+
+    const getVisiblePages = () => {
+      const delta = 2;
+      const range = [];
+      const rangeWithDots = [];
+
+      for (let i = Math.max(2, currentPage - delta); i <= Math.min(totalPages - 1, currentPage + delta); i++) {
+        range.push(i);
+      }
+
+      if (currentPage - delta > 2) {
+        rangeWithDots.push(1, '...');
+      } else {
+        rangeWithDots.push(1);
+      }
+
+      rangeWithDots.push(...range);
+
+      if (currentPage + delta < totalPages - 1) {
+        rangeWithDots.push('...', totalPages);
+      } else {
+        rangeWithDots.push(totalPages);
+      }
+
+      return rangeWithDots;
+    };
+
+    const visiblePages = getVisiblePages();
+
+    return (
+      <div className="flex items-center justify-center space-x-2 mt-12">
+        {/* Previous button */}
+        <button
+          onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+          disabled={currentPage === 1}
+          className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+            currentPage === 1
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          <ChevronLeft className="w-4 h-4 mr-1" />
+          Önceki
+        </button>
+
+        {/* Page numbers */}
+        <div className="flex items-center space-x-1">
+          {visiblePages.map((page, index) => (
+            <React.Fragment key={index}>
+              {page === '...' ? (
+                <span className="px-3 py-2 text-gray-500">...</span>
+              ) : (
+                <button
+                  onClick={() => setCurrentPage(page as number)}
+                  className={`px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    currentPage === page
+                      ? 'bg-gradient-to-r from-purple-500 to-pink-500 text-white shadow-lg'
+                      : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+                  }`}
+                >
+                  {page}
+                </button>
+              )}
+            </React.Fragment>
+          ))}
+        </div>
+
+        {/* Next button */}
+        <button
+          onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+          disabled={currentPage === totalPages}
+          className={`flex items-center px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
+            currentPage === totalPages
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-white text-gray-700 border border-gray-300 hover:bg-gray-50'
+          }`}
+        >
+          Sonraki
+          <ChevronRight className="w-4 h-4 ml-1" />
+        </button>
+      </div>
+    );
+  };
 
   return (
     <div>
@@ -140,6 +242,37 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ groups, categories, 
         </div>
       </div>
 
+      {/* Category Header */}
+      <div className={`bg-gradient-to-br ${category.color} text-white`}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
+          <div className="text-center">
+            <div className="w-24 h-24 bg-white bg-opacity-20 rounded-3xl flex items-center justify-center mx-auto mb-6">
+              <CategoryIcon className="w-12 h-12 text-white" />
+            </div>
+            <h1 className="text-4xl font-bold mb-4">{category.name} Grupları</h1>
+            <p className="text-xl text-white text-opacity-90 mb-8 max-w-2xl mx-auto">
+              {category.name} kategorisindeki en popüler Telegram gruplarını keşfedin
+            </p>
+            
+            {/* Stats */}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-8 max-w-2xl mx-auto">
+              <div className="text-center">
+                <div className="text-3xl font-bold mb-2">{totalGroups}</div>
+                <div className="text-white text-opacity-80">Toplam Grup</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold mb-2">{formatMembers(totalMembers)}</div>
+                <div className="text-white text-opacity-80">Toplam Üye</div>
+              </div>
+              <div className="text-center">
+                <div className="text-3xl font-bold mb-2">{featuredGroups}</div>
+                <div className="text-white text-opacity-80">Öne Çıkan</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
       {/* Search and Filters */}
       <div className="bg-gray-50 border-t border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -159,6 +292,14 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ groups, categories, 
 
               <div className="flex items-center space-x-4">
                 {/* Add Group Button */}
+                <button
+                  onClick={() => setShowAddForm(true)}
+                  className="flex items-center space-x-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white px-6 py-3 rounded-2xl font-semibold hover:from-purple-600 hover:to-pink-600 transition-all duration-300 transform hover:scale-105"
+                >
+                  <Plus className="w-5 h-5" />
+                  <span>Grup Ekle</span>
+                </button>
+                
                 {/* Sort */}
                 <div className="flex items-center space-x-4">
                   <Filter className="w-5 h-5 text-gray-400" />
@@ -178,11 +319,27 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ groups, categories, 
         </div>
       </div>
 
+      {/* Results Info */}
+      {categoryGroups.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            <p className="text-gray-600 text-sm">
+              {categoryGroups.length} gruptan {startIndex + 1}-{Math.min(endIndex, categoryGroups.length)} arası gösteriliyor
+            </p>
+            {totalPages > 1 && (
+              <p className="text-gray-600 text-sm">
+                Sayfa {currentPage} / {totalPages}
+              </p>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Groups Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         {categoryGroups.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {categoryGroups.map((group) => {
+            {currentGroups.map((group) => {
               const isPromoted = promotionService.isGroupPromoted(group.id);
               
               return (
@@ -272,31 +429,28 @@ export const CategoryPage: React.FC<CategoryPageProps> = ({ groups, categories, 
             })}
           </div>
         ) : (
-          <div className="text-center py-12">
-            <div className={`w-24 h-24 bg-gradient-to-br ${category.color} rounded-full flex items-center justify-center mx-auto mb-4 opacity-50`}>
-              <CategoryIcon className="w-12 h-12 text-white" />
+          <div className="text-center py-16">
+            <div className={`w-24 h-24 bg-gradient-to-br ${category.color} rounded-full flex items-center justify-center mx-auto mb-6`}>
+              <Search className="w-12 h-12 text-white" />
             </div>
-            <h3 className="text-xl font-bold text-gray-900 mb-2">
-              {searchTerm ? 'Arama sonucu bulunamadı' : `${category.name} kategorisinde grup bulunamadı`}
-            </h3>
-            <p className="text-gray-600 mb-6">
-              {searchTerm 
-                ? 'Arama kriterlerinizi değiştirmeyi deneyin' 
-                : `${category.name} kategorisinde henüz grup eklenmemiş`
-              }
+            <h3 className="text-2xl font-bold text-gray-900 mb-4">Henüz grup yok</h3>
+            <p className="text-gray-600 mb-8 max-w-md mx-auto">
+              {category.name} kategorisinde henüz onaylanmış grup bulunmuyor. İlk siz ekleyin!
             </p>
             <button
               onClick={() => setShowAddForm(true)}
-              className="bg-gradient-to-r from-pink-500 to-purple-600 text-white px-6 py-3 rounded-2xl font-semibold flex items-center space-x-2 hover:from-pink-600 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 mx-auto"
+              className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-8 py-3 rounded-2xl font-semibold hover:from-purple-600 hover:to-pink-600 transition-all duration-300 transform hover:scale-105"
             >
-              <Plus className="w-5 h-5" />
-              <span>İlk Grubu Ekle</span>
+              İlk Grubu Ekle
             </button>
           </div>
         )}
+
+        {/* Pagination */}
+        {renderPagination()}
       </div>
 
-      {/* Related Categories */}
+      {/* Other Categories Section */}
       <div className="bg-gray-50 border-t border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <h2 className="text-2xl font-bold text-gray-900 mb-8 text-center">Diğer Kategoriler</h2>

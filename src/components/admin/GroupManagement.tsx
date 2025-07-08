@@ -531,6 +531,7 @@ export const GroupManagement: React.FC<GroupManagementProps> = ({
           isOpen={showAddGroupModal}
           onClose={() => setShowAddGroupModal(false)}
           onGroupAdded={(group) => {
+            // AddGroupModal zaten tüm gerekli işlemleri yapıyor, sadece UI güncellemesi yap
             onUpdateGroup(group);
             setShowAddGroupModal(false);
           }}

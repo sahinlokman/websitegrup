@@ -288,9 +288,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       );
     }
     
-    // Kullanıcı çıkış yaptığında, grupları yeniden yüklemek için bir event tetikle
-    window.dispatchEvent(new Event('storage'));
-    
     setAuthState({
       user: null,
       isAuthenticated: false,

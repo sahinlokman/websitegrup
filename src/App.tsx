@@ -243,50 +243,38 @@ const mockBlogPosts: BlogPost[] = [
 
 export default function App() {
   const { user } = useAuth();
-  const [groups, setGroups] = useState<TelegramGroup[]>(demoGroups);
+  const [groups, setGroups] = useState<TelegramGroup[]>([]);
   const [loading, setLoading] = useState(true);
   const [categories, setCategories] = useState(initialCategoriesData);
   const [pages, setPages] = useState<Page[]>(mockPages);
   const [blogPosts, setBlogPosts] = useState<BlogPost[]>(mockBlogPosts);
 
-  // Yeni grup ekleme - Supabase öncelikli
+  // Yeni grup ekleme - Admin kullanıcılar için groups tablosuna da ekle
   const handleGroupAdded = async (newGroup: TelegramGroup) => {
     try {
-      const groupWithId = {
-        ...newGroup,
-        id: newGroup.id || `group-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-        approved: newGroup.approved !== undefined ? newGroup.approved : true // Varsayılan olarak onaylanmış yap
-      };
-
-      // Supabase'e ekle
-      const addedGroup = await groupService.addGroup(groupWithId);
-      
-      if (addedGroup) {
-        // Ana listeye ekle (onaylanmış olduğu için)
-        const updatedGroups = [addedGroup, ...groups];
-        setGroups(updatedGroups);
+      // Admin kullanıcılar için groups tablosuna ekle
+      if (user?.role === 'admin') {
+        const addedGroup = await groupService.addGroup(newGroup);
         
-        // localStorage'ı güncelle (önbellek olarak)
-        localStorage.setItem('groups', JSON.stringify(updatedGroups));
-        localStorage.setItem('publicGroups', JSON.stringify(updatedGroups));
-        
-        // Sayaçları güncelle
-        if (addedGroup.approved === true) {
-          const approvedCount = parseInt(localStorage.getItem('approvedGroupsCount') || '0') + 1;
-          localStorage.setItem('approvedGroupsCount', approvedCount.toString());
+        if (addedGroup) {
+          // Ana listeye ekle
+          const updatedGroups = [addedGroup, ...groups];
+          setGroups(updatedGroups);
+          
+          // localStorage'ı güncelle (önbellek olarak)
+          localStorage.setItem('groups', JSON.stringify(updatedGroups));
+          localStorage.setItem('publicGroups', JSON.stringify(updatedGroups));
+          
+          console.log('Admin: Grup ana listeye eklendi:', addedGroup.name);
         } else {
-          const pendingCount = parseInt(localStorage.getItem('pendingGroupsCount') || '0') + 1;
-          localStorage.setItem('pendingGroupsCount', pendingCount.toString());
+          console.error('Admin: Grup ana listeye eklenemedi');
         }
-        
-        // Başarılı ekleme bildirimi
-        alert('Grup başarıyla eklendi!');
       } else {
-        alert('Grup eklenirken bir hata oluştu. Lütfen tekrar deneyin.');
+        // Normal kullanıcılar için sadece bilgi mesajı
+        console.log('Kullanıcı: Grup onay için gönderildi:', newGroup.name);
       }
     } catch (error) {
-      console.error('Error adding group to Supabase:', error);
-      alert('Grup eklenirken bir hata oluştu: ' + (error instanceof Error ? error.message : String(error)));
+      console.error('Error handling group addition:', error);
     }
   };
 
@@ -453,8 +441,27 @@ export default function App() {
     setCategories(prev => [...prev, categoryWithId]);
   };
 
+  // Sayfa ilk açıldığında localStorage'dan grupları yükle
+  useEffect(() => {
+    const loadInitialGroups = () => {
+      try {
+        const localGroups = localStorage.getItem('groups');
+        if (localGroups) {
+          const parsedGroups = JSON.parse(localGroups);
+          setGroups(parsedGroups);
+        } else {
+          // localStorage boşsa demo grupları göster
+          setGroups(demoGroups);
+        }
+      } catch (error) {
+        console.error('Error loading initial groups from localStorage:', error);
+        setGroups(demoGroups);
+      }
+    };
+    
+    loadInitialGroups();
+  }, []); // Sadece bir kez çalışır
 
-  
   // Kullanıcı durumuna göre grupları yükle
   useEffect(() => {
     const loadGroupsBasedOnUser = async () => {
@@ -470,6 +477,10 @@ export default function App() {
           localStorage.setItem('rejectedGroupsCount', '0');
         }
         
+        // Önce localStorage'daki grupları kontrol et
+        const localGroups = localStorage.getItem('groups');
+        const publicGroups = localStorage.getItem('publicGroups');
+        
         // Supabase'den güncel grupları yükle
         const supabaseGroups = await groupService.getGroups();
         
@@ -484,13 +495,35 @@ export default function App() {
           // Sayaçları güncelle
           const approvedCount = supabaseGroups.filter(g => g.approved === true).length;
           localStorage.setItem('approvedGroupsCount', approvedCount.toString());
+        } else if (localGroups) {
+          // Supabase boşsa ama localStorage'da gruplar varsa, onları kullan
+          try {
+            const parsedLocalGroups = JSON.parse(localGroups);
+            setGroups(parsedLocalGroups);
+          } catch (error) {
+            console.error('Error parsing local groups:', error);
+            setGroups(demoGroups);
+          }
         } else {
-          // Supabase boşsa demo grupları göster
+          // Hem Supabase hem localStorage boşsa demo grupları göster
           setGroups(demoGroups);
         }
       } catch (error) {
         console.error('Error loading groups:', error);
-        setGroups(demoGroups);
+        
+        // Hata durumunda localStorage'daki grupları kontrol et
+        try {
+          const localGroups = localStorage.getItem('groups');
+          if (localGroups) {
+            const parsedLocalGroups = JSON.parse(localGroups);
+            setGroups(parsedLocalGroups);
+          } else {
+            setGroups(demoGroups);
+          }
+        } catch (localError) {
+          console.error('Error loading from localStorage:', localError);
+          setGroups(demoGroups);
+        }
       }
     };
     

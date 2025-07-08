@@ -22,6 +22,7 @@ import { createSlug } from '../../utils/slug';
 import { User as UserType } from '../../types/user';
 import { UserGroup } from '../../types/userGroup';
 import { useAuth } from '../../contexts/AuthContext';
+import { authService } from '../../services/supabaseService';
 
 interface UserWithGroups extends UserType {
   groups: UserGroup[];
@@ -46,43 +47,82 @@ export const UserManagement: React.FC = () => {
     loadUsers();
   }, []);
 
-  const loadUsers = () => {
+
+
+  const loadUsers = async () => {
     setIsLoading(true);
     try {
-      // LocalStorage'dan tüm kullanıcıları yükle
-      const savedUsers = localStorage.getItem('allUsers');
-      let allUsers: UserType[] = [];
+      console.log('Loading users from Supabase...');
       
-      if (savedUsers) {
-        allUsers = JSON.parse(savedUsers);
-        
-        // Date string'leri Date objelerine çevir
-        allUsers = allUsers.map(user => ({
-          ...user,
-          createdAt: user.createdAt ? new Date(user.createdAt) : new Date(),
-          lastLogin: user.lastLogin ? new Date(user.lastLogin) : undefined
-        }));
+      // Supabase'den kullanıcıları yükle
+      const supabaseUsers = await authService.getUsers();
+      console.log('Supabase users:', supabaseUsers);
+      
+      // Eğer Supabase boşsa, demo kullanıcıları ekle
+      if (supabaseUsers.length === 0) {
+        console.log('No users found in Supabase, adding demo users...');
+        await addDemoUsers();
+        // Demo kullanıcıları ekledikten sonra tekrar yükle
+        const updatedUsers = await authService.getUsers();
+        console.log('Users after adding demo data:', updatedUsers);
+        setUsers(updatedUsers.map(user => ({ ...user, groups: [] })));
       } else {
-        // Eğer kullanıcı listesi yoksa, boş bir liste oluştur
-        localStorage.setItem('allUsers', JSON.stringify([]));
+        // Her kullanıcı için grupları yükle
+        const usersWithGroups: UserWithGroups[] = supabaseUsers.map(user => {
+          const userGroups = loadUserGroups(user.id);
+          return {
+            ...user,
+            groups: userGroups
+          };
+        });
+        
+        console.log('Users with groups:', usersWithGroups);
+        setUsers(usersWithGroups);
       }
-      console.log('Loaded users:', allUsers);
-      
-      // Her kullanıcı için grupları yükle
-      const usersWithGroups: UserWithGroups[] = allUsers.map(user => {
-        const userGroups = loadUserGroups(user.id);
-        return {
-          ...user,
-          groups: userGroups
-        };
-      });
-      
-      console.log('Users with groups:', usersWithGroups);
-      setUsers(usersWithGroups);
     } catch (error) {
       console.error('Error loading users:', error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const addDemoUsers = async () => {
+    try {
+      // Demo kullanıcıları Supabase'e ekle
+      const demoUsers = [
+        {
+          username: 'admin',
+          email: 'admin@telegramgruplari.com',
+          fullName: 'Site Yöneticisi',
+          password: 'pass46',
+          confirmPassword: 'pass46'
+        },
+        {
+          username: 'demo',
+          email: 'demo@example.com',
+          fullName: 'Demo Kullanıcı',
+          password: 'demo123',
+          confirmPassword: 'demo123'
+        },
+        {
+          username: 'testuser',
+          email: 'test@example.com',
+          fullName: 'Test Kullanıcı',
+          password: 'test123',
+          confirmPassword: 'test123'
+        }
+      ];
+
+      for (const userData of demoUsers) {
+        try {
+          await authService.register(userData);
+          console.log(`Created demo user: ${userData.username}`);
+        } catch (error) {
+          console.log(`Demo user ${userData.username} already exists or error:`, error);
+        }
+      }
+    } catch (error) {
+      console.error('Error adding demo users:', error);
     }
   };
 
@@ -108,26 +148,17 @@ export const UserManagement: React.FC = () => {
     }
   };
 
-  const handleDeleteUser = (userId: string) => {
+  const handleDeleteUser = async (userId: string) => {
     if (confirm('Bu kullanıcıyı silmek istediğinizden emin misiniz? Bu işlem geri alınamaz.')) {
       try {
-        // Kullanıcıyı listeden kaldır
-        const updatedUsers = users.filter(user => user.id !== userId);
-        
-        // LocalStorage'ı güncelle
-        localStorage.setItem('allUsers', JSON.stringify(updatedUsers));
-        
-        // Kullanıcının gruplarını sil
-        localStorage.removeItem(`userGroups_${userId}`);
-        
-        // Kullanıcının promosyonlarını sil
-        localStorage.removeItem(`userPromotions_${userId}`);
-        
-        // State'i güncelle
-        setUsers(updatedUsers);
-        
-        // Başarı mesajı göster
-        alert('Kullanıcı başarıyla silindi!');
+        const success = await authService.deleteUser(userId);
+        if (success) {
+          // State'i güncelle
+          setUsers(prevUsers => prevUsers.filter(user => user.id !== userId));
+          alert('Kullanıcı başarıyla silindi!');
+        } else {
+          alert('Kullanıcı silinirken bir hata oluştu!');
+        }
       } catch (error) {
         console.error('Error deleting user:', error);
         alert('Kullanıcı silinirken bir hata oluştu!');
@@ -135,30 +166,27 @@ export const UserManagement: React.FC = () => {
     }
   };
 
-  const handleToggleUserRole = (userId: string, currentRole: 'admin' | 'user') => {
+  const handleToggleUserRole = async (userId: string, currentRole: 'admin' | 'user') => {
     try {
-      // Kullanıcının rolünü değiştir
       const newRole = currentRole === 'admin' ? 'user' : 'admin';
       
-      // State'i güncelle
-      const updatedUsers = users.map(user => {
-        if (user.id === userId) {
-          return {
-            ...user,
-            role: newRole as 'admin' | 'user'
-          };
-        }
-        return user;
-      });
-      
-      // LocalStorage'ı güncelle
-      localStorage.setItem('allUsers', JSON.stringify(updatedUsers));
-      
-      // State'i güncelle
-      setUsers(updatedUsers);
-      
-      // Başarı mesajı göster
-      alert(`Kullanıcı rolü ${newRole === 'admin' ? 'Yönetici' : 'Kullanıcı'} olarak güncellendi!`);
+      const success = await authService.updateUserRole(userId, newRole);
+      if (success) {
+        // State'i güncelle
+        setUsers(prevUsers => prevUsers.map(user => {
+          if (user.id === userId) {
+            return {
+              ...user,
+              role: newRole
+            };
+          }
+          return user;
+        }));
+        
+        alert(`Kullanıcı rolü ${newRole === 'admin' ? 'Yönetici' : 'Kullanıcı'} olarak güncellendi!`);
+      } else {
+        alert('Kullanıcı rolü güncellenirken bir hata oluştu!');
+      }
     } catch (error) {
       console.error('Error updating user role:', error);
       alert('Kullanıcı rolü güncellenirken bir hata oluştu!');
@@ -259,8 +287,8 @@ export const UserManagement: React.FC = () => {
     setSortDirection(prev => prev === 'asc' ? 'desc' : 'asc');
   };
 
-  const refreshData = () => {
-    loadUsers();
+  const refreshData = async () => {
+    await loadUsers();
   };
 
   return (
